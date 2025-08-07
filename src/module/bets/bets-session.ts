@@ -10,6 +10,7 @@ import { logEventAndEmitResponse } from '../../utilities/helper-function';
 import { prepareDataForWebhook, postDataToSourceForBet } from '../../utilities/common-function';
 import { insertBets, insertCashout, insertSettleBet } from './bets-db';
 import { sendToQueue } from '../../utilities/amqp';
+import { inPlayUser } from '../../socket';
 
 const logger: Logger = createLogger('Bets', 'jsonl');
 const cashoutLogger: Logger = createLogger('Cashout', 'jsonl');
@@ -551,6 +552,13 @@ const createRoundStats = (roundData: RoundData, currentRoundSettlements: Settlem
 export const disConnect = async (io: Server, socket: Socket): Promise<void> => {
 
     const userActiveBets = bets.filter(bet => bet.socket_id === socket.id && !bet.plane_status);
+    const cachedPlayerDetails = await getCache(`PL:${socket.id}`);
+    if (!cachedPlayerDetails) {
+        socket.emit('betError', 'Invalid Player Details');
+        return;
+    }
+    const parsedPlayerDetails: FinalUserData = JSON.parse(cachedPlayerDetails);
+    inPlayUser.delete(parsedPlayerDetails.id);
 
     if (userActiveBets.length > 0) {
         if (lobbyData.status === 1 && lobbyData.ongoingMaxMult) {
@@ -568,12 +576,12 @@ export const disConnect = async (io: Server, socket: Socket): Promise<void> => {
             logger.info(`Bets cancelled due to disconnect during betting phase for socket ${socket.id}: ${betsToCancelOnDisconnect.join(', ')}`);
         } else if (lobbyData.status == 0 && lobbyData.isWebhook) {
             await Promise.all(userActiveBets.map(async bet => {
-                setTimeout(async() => await cashOut(io, socket, [1.00, bet.atCo, 0, ...bet.bet_id.split(':')]), 100);
+                setTimeout(async () => await cashOut(io, socket, [1.00, bet.atCo, 0, ...bet.bet_id.split(':')]), 100);
             }));
         }
     };
     reducePlayerCount();
-    setTimeout(async() => await deleteCache(`PL:${socket.id}`), 200);
+    setTimeout(async () => await deleteCache(`PL:${socket.id}`), 200);
 };
 
 export const getCurrentLobby = (): LobbyData => lobbyData;
