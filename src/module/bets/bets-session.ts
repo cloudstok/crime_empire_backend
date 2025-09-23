@@ -399,9 +399,15 @@ export const cashOut = async (
         betObj.atCo = Number(betObj.atCo);
         Object.assign(betObj, { lobby_id, bet_amount, user_id, operator_id });
 
+        if (betObj.atCo && atCo && betObj.atCo != atCo) {
+            return logEventAndEmitResponse(socket, CashObj, `Cheat: Invalid Cashout Multiplier. Setted Max Mult: ${betObj.atCo}, Received: ${atCo}`, 'cashout');
+        }
 
         let effective_max_mult: number;
-        if ((betObj.atCo) && atCo && betObj.atCo === atCo && atCo <= Number(lobbyData.ongoingMaxMult)) {
+
+        if (max_mult && atCo && max_mult > atCo) {
+            effective_max_mult = atCo
+        } else if ((betObj.atCo) && atCo && betObj.atCo === atCo && atCo <= Number(lobbyData.ongoingMaxMult)) {
             effective_max_mult = betObj.atCo;
         } else {
             effective_max_mult = max_mult;
